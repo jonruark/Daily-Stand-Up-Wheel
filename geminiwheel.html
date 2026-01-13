@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agile Stand-up Spinner</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #34495e;
+            --accent: #e74c3c;
+            --success: #27ae60;
+            --bg: #ecf0f1;
+            --text: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        .header-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        h1 { color: var(--primary); margin: 0; }
+
+        .timer-display {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--secondary);
+            background: #fff;
+            padding: 5px 15px;
+            border-radius: 8px;
+            margin-top: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .main-layout {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 30px;
+            justify-content: center;
+            width: 100%;
+            max-width: 1400px;
+            align-items: flex-start;
+            position: relative;
+        }
+
+        /* Panels */
+        .panel {
+            flex: 1;
+            min-width: 250px;
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            flex-direction: column;
+            max-height: 80vh;
+            z-index: 2;
+        }
+
+        h2 { font-size: 1.2rem; margin-top: 0; color: var(--secondary); border-bottom: 2px solid #eee; padding-bottom: 10px;}
+
+        .input-group {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 15px;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+
+        button {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .btn-add { background-color: var(--success); color: white; }
+        .btn-add:hover { background-color: #219150; }
+
+        .btn-small-reset { 
+            background-color: #95a5a6; 
+            color: white; 
+            margin-top: 10px;
+            width: 100%;
+            font-size: 0.8rem;
+        }
+
+        /* Lists */
+        ul, ol {
+            padding-left: 20px;
+            margin: 0;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        li {
+            padding: 8px 0;
+            border-bottom: 1px solid #f0f0f0;
+            font-size: 0.95rem;
+        }
+
+        .active-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-delete {
+            background-color: #e74c3c; /* Red */
+            color: white;
+            padding: 2px 8px;
+            font-size: 12px;
+            border-radius: 3px;
+            margin-left: 10px;
+        }
+
+        .completed-list {
+            color: #7f8c8d;
+        }
+
+        /* Wheel Section */
+        .wheel-section {
+            flex: 2;
+            min-width: 320px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+        }
+
+        #wheelCanvas {
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+            max-width: 100%;
+            height: auto;
+        }
+
+        .pointer {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0; 
+            height: 0; 
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 40px solid var(--primary);
+            z-index: 10;
+        }
+
+        .action-area {
+            margin-top: 20px;
+            text-align: center;
+            min-height: 100px;
+        }
+
+        .winner-text {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--primary);
+            margin-bottom: 15px;
+            display: block;
+            min-height: 1.2em;
+        }
+
+        .btn-spin { 
+            background-color: var(--accent); 
+            color: white; 
+            font-size: 1.5em;
+            padding: 15px 40px;
+            border-radius: 50px;
+            box-shadow: 0 4px 0 #c0392b;
+            min-width: 200px;
+        }
+        .btn-spin:active { box-shadow: 0 1px 0 #c0392b; transform: translateY(3px); }
+        .btn-spin:disabled { background-color: #95a5a6; box-shadow: none; cursor: not-allowed; }
+
+        .btn-reset-mode {
+            background-color: var(--primary) !important;
+            box-shadow: 0 4px 0 var(--secondary) !important;
+        }
+        .btn-reset-mode:active {
+            box-shadow: 0 1px 0 var(--secondary) !important;
+        }
+
+        /* Confetti Overlay */
+        #confettiCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 999;
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="header-container">
+        <h1>Daily Stand-up Wheel</h1>
+        <div class="timer-display" id="timerDisplay">00:00</div>
+    </div>
+    
+    <div class="main-layout">
+        <canvas id="confettiCanvas"></canvas>
+        
+        <!-- FIRST: Wheel Section -->
+        <div class="wheel-section">
+            <div class="pointer"></div>
+            <canvas id="wheelCanvas" width="500" height="500"></canvas>
+            
+            <div class="action-area">
+                <div class="winner-text" id="winnerText">Ready?</div>
+                <button class="btn-spin" id="spinBtn" onclick="handleMainButtonClick()">SPIN!</button>
+            </div>
+        </div>
+
+        <!-- SECOND: Completed List -->
+        <div class="panel">
+            <h2>Completed (<span id="doneCount">0</span>)</h2>
+            <ol id="completedList" class="completed-list"></ol>
+        </div>
+
+        <!-- THIRD: To Do List -->
+        <div class="panel">
+            <h2>To Do (<span id="todoCount">0</span>)</h2>
+            <div class="input-group">
+                <input type="text" id="newName" placeholder="Add name..." onkeypress="handleEnter(event)">
+                <button class="btn-add" onclick="addName()">+</button>
+            </div>
+            <ul id="activeList"></ul>
+            <button class="btn-small-reset" onclick="confirmAndReset()">Reset Board</button>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Configuration ---
+        const canvas = document.getElementById('wheelCanvas');
+        const ctx = canvas.getContext('2d');
+        const confettiCanvas = document.getElementById('confettiCanvas');
+        const confettiCtx = confettiCanvas.getContext('2d');
+        
+        const spinBtn = document.getElementById('spinBtn');
+        const winnerText = document.getElementById('winnerText');
+        const activeListEl = document.getElementById('activeList');
+        const completedListEl = document.getElementById('completedList');
+        const newNameInput = document.getElementById('newName');
+        const todoCountEl = document.getElementById('todoCount');
+        const doneCountEl = document.getElementById('doneCount');
+        const timerDisplay = document.getElementById('timerDisplay');
+
+        const colors = [
+            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD', 
+            '#D4A5A5', '#9B59B6', '#3498DB', '#E67E22', '#2ECC71',
+            '#F1C40F', '#E74C3C', '#1ABC9C', '#8E44AD', '#34495E'
+        ];
+
+        // State
+        let activeNames = [];
+        let completedNames = [];
+        let currentAngle = 0;
+        let isSpinning = false;
+        let spinVelocity = 0;
+
+        // Timer State
+        let timerInterval = null;
+        let timerStartTime = null;
+        let timerStarted = false;
+
+        // --- Initialization ---
+        window.onload = () => {
+            resizeConfetti();
+            loadData();
+            updateUI();
+            drawWheel();
+        };
+
+        window.onresize = resizeConfetti;
+
+        function resizeConfetti() {
+            confettiCanvas.width = window.innerWidth;
+            confettiCanvas.height = window.innerHeight;
+        }
+
+        // --- Timer Logic ---
+
+        function startTimer() {
+            if (timerStarted) return;
+            timerStarted = true;
+            timerStartTime = Date.now();
+            timerInterval = setInterval(updateTimer, 1000);
+        }
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function resetTimer() {
+            stopTimer();
+            timerStarted = false;
+            timerDisplay.textContent = "00:00";
+        }
+
+        function updateTimer() {
+            const elapsed = Date.now() - timerStartTime;
+            const totalSeconds = Math.floor(elapsed / 1000);
+            const minutes = Math.floor(totalSeconds / 60);
+            const seconds = totalSeconds % 60;
+            timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+        }
+
+        // --- Data Management ---
+
+        function saveData() {
+            localStorage.setItem('standup_active', JSON.stringify(activeNames));
+            localStorage.setItem('standup_completed', JSON.stringify(completedNames));
+        }
+
+        function loadData() {
+            const savedActive = localStorage.getItem('standup_active');
+            const savedCompleted = localStorage.getItem('standup_completed');
+
+            if (savedActive) activeNames = JSON.parse(savedActive);
+            if (savedCompleted) completedNames = JSON.parse(savedCompleted);
+
+            if (!savedActive && !savedCompleted) {
+                activeNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Evan'];
+            }
+        }
+
+        function addName() {
+            const name = newNameInput.value.trim();
+            if (name) {
+                activeNames.push(name);
+                newNameInput.value = '';
+                saveData();
+                updateUI();
+                drawWheel();
+            }
+        }
+
+        function handleEnter(e) {
+            if (e.key === 'Enter') addName();
+        }
+
+        function deleteName(index) {
+            if (isSpinning) return;
+            activeNames.splice(index, 1);
+            saveData();
+            updateUI();
+            drawWheel();
+        }
+
+        function confirmAndReset() {
+            if(confirm("Start a new stand-up? Moves everyone back to 'To Do'.")){
+                resetStandup();
+            }
+        }
+
+        function resetStandup() {
+            activeNames = [...activeNames, ...completedNames];
+            completedNames = [];
+            winnerText.textContent = "New Stand-up Started";
+            resetTimer();
+            saveData();
+            updateUI();
+            drawWheel();
+        }
+
+        // --- Main Logic ---
+
+        function handleMainButtonClick() {
+            if (activeNames.length === 0 && completedNames.length > 0) {
+                resetStandup();
+            } else {
+                startTimer();
+                spinWheel();
+            }
+        }
+
+        function updateUI() {
+            activeListEl.innerHTML = '';
+            activeNames.forEach((name, index) => {
+                const li = document.createElement('li');
+                li.className = 'active-item';
+                li.innerHTML = `
+                    <span>${name}</span>
+                    <button class="btn-delete" onclick="deleteName(${index})">×</button>
+                `;
+                activeListEl.appendChild(li);
+            });
+
+            completedListEl.innerHTML = '';
+            completedNames.forEach(name => {
+                const li = document.createElement('li');
+                li.textContent = name;
+                completedListEl.appendChild(li);
+            });
+
+            todoCountEl.innerText = activeNames.length;
+            doneCountEl.innerText = completedNames.length;
+
+            if (activeNames.length === 0) {
+                if (completedNames.length > 0) {
+                    spinBtn.disabled = false;
+                    spinBtn.textContent = "Start New Stand-up ↺";
+                    spinBtn.classList.add("btn-reset-mode");
+                    winnerText.textContent = "All done! 🎉";
+                } else {
+                    spinBtn.disabled = true;
+                    spinBtn.textContent = "SPIN!";
+                    spinBtn.classList.remove("btn-reset-mode");
+                    winnerText.textContent = "Add names to start";
+                }
+            } else {
+                spinBtn.disabled = false;
+                spinBtn.textContent = "SPIN!";
+                spinBtn.classList.remove("btn-reset-mode");
+            }
+        }
+
+        // --- Wheel Rendering ---
+
+        function drawWheel() {
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = canvas.width / 2 - 10;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (activeNames.length === 0) {
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+                ctx.fillStyle = "#ecf0f1";
+                ctx.fill();
+                ctx.strokeStyle = "#bdc3c7";
+                ctx.stroke();
+                return;
+            }
+
+            const arcSize = (2 * Math.PI) / activeNames.length;
+
+            activeNames.forEach((name, i) => {
+                const angle = currentAngle + (i * arcSize);
+                
+                ctx.beginPath();
+                ctx.moveTo(centerX, centerY);
+                ctx.arc(centerX, centerY, radius, angle, angle + arcSize);
+                ctx.closePath();
+                
+                ctx.fillStyle = colors[i % colors.length];
+                ctx.fill();
+                ctx.lineWidth = 2;
+                ctx.strokeStyle = "#fff";
+                ctx.stroke();
+
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(angle + arcSize / 2);
+                ctx.textAlign = "right";
+                ctx.fillStyle = "#fff";
+                ctx.font = "bold 22px sans-serif";
+                ctx.shadowColor = "rgba(0,0,0,0.5)";
+                ctx.shadowBlur = 4;
+                ctx.fillText(name, radius - 20, 8);
+                ctx.restore();
+            });
+        }
+
+        // --- Animation ---
+
+        function spinWheel() {
+            if (isSpinning || activeNames.length === 0) return;
+            isSpinning = true;
+            winnerText.textContent = "Spinning...";
+            spinBtn.disabled = true;
+            spinVelocity = Math.random() * 0.25 + 0.35; 
+            requestAnimationFrame(animateSpin);
+        }
+
+        function animateSpin() {
+            spinVelocity *= 0.98;
+            currentAngle += spinVelocity;
+            if (currentAngle >= 2 * Math.PI) currentAngle -= 2 * Math.PI;
+            drawWheel();
+            if (spinVelocity > 0.002) {
+                requestAnimationFrame(animateSpin);
+            } else {
+                stopSpin();
+            }
+        }
+
+        function stopSpin() {
+            isSpinning = false;
+            spinVelocity = 0;
+            determineWinner();
+        }
+
+        function determineWinner() {
+            const arcSize = (2 * Math.PI) / activeNames.length;
+            const pointerAngle = (3 * Math.PI / 2);
+            let relativeAngle = pointerAngle - (currentAngle % (2 * Math.PI));
+            while (relativeAngle < 0) relativeAngle += 2 * Math.PI;
+            const index = Math.floor(relativeAngle / arcSize);
+            const winnerName = activeNames[index];
+
+            winnerText.textContent = `🎉 ${winnerName} is up! 🎉`;
+            setTimeout(() => autoMoveToCompleted(winnerName), 3000);
+        }
+
+        function autoMoveToCompleted(name) {
+            const index = activeNames.indexOf(name);
+            if (index > -1) {
+                activeNames.splice(index, 1);
+                completedNames.push(name);
+                
+                saveData();
+                updateUI();
+                drawWheel();
+
+                if (activeNames.length > 0) {
+                    winnerText.textContent = `Up next: Spin for next person`;
+                } else {
+                    stopTimer();
+                    triggerConfetti();
+                }
+            }
+        }
+
+        // --- Confetti Animation ---
+
+        function triggerConfetti() {
+            const particles = [];
+            const particleCount = 150;
+            const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
+
+            for (let i = 0; i < particleCount; i++) {
+                particles.push({
+                    x: Math.random() * confettiCanvas.width,
+                    y: Math.random() * confettiCanvas.height - confettiCanvas.height,
+                    r: Math.random() * 6 + 4,
+                    d: Math.random() * particleCount,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    tilt: Math.random() * 10 - 10,
+                    tiltAngleIncremental: Math.random() * 0.07 + 0.05,
+                    tiltAngle: 0
+                });
+            }
+
+            let animationFrame;
+            function drawConfetti() {
+                confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+                let remaining = false;
+                
+                particles.forEach((p, i) => {
+                    p.tiltAngle += p.tiltAngleIncremental;
+                    p.y += (Math.cos(p.d) + 3 + p.r / 2) / 2;
+                    p.tilt = Math.sin(p.tiltAngle) * 15;
+
+                    if (p.y <= confettiCanvas.height) remaining = true;
+
+                    confettiCtx.beginPath();
+                    confettiCtx.lineWidth = p.r;
+                    confettiCtx.strokeStyle = p.color;
+                    confettiCtx.moveTo(p.x + p.tilt + p.r / 4, p.y);
+                    confettiCtx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r / 4);
+                    confettiCtx.stroke();
+                });
+
+                if (remaining) {
+                    animationFrame = requestAnimationFrame(drawConfetti);
+                } else {
+                    confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
+                    cancelAnimationFrame(animationFrame);
+                }
+            }
+            drawConfetti();
+        }
+
+    </script>
+</body>
+</html>
