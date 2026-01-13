@@ -62,7 +62,7 @@
         /* Panels */
         .panel {
             flex: 1;
-            min-width: 250px;
+            min-width: 280px;
             background: white;
             padding: 20px;
             border-radius: 10px;
@@ -110,35 +110,64 @@
 
         /* Lists */
         ul, ol {
-            padding-left: 20px;
+            padding-left: 0;
             margin: 0;
             overflow-y: auto;
             flex: 1;
+            list-style: none;
         }
 
         li {
-            padding: 8px 0;
+            padding: 10px 0;
             border-bottom: 1px solid #f0f0f0;
             font-size: 0.95rem;
         }
 
         .active-item {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            gap: 10px;
+        }
+
+        .active-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .active-item .name-label {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .active-item.disabled-name .name-label {
+            color: #bdc3c7;
+            text-decoration: line-through;
         }
 
         .btn-delete {
-            background-color: #e74c3c; /* Red */
+            background-color: #e74c3c;
             color: white;
             padding: 2px 8px;
             font-size: 12px;
             border-radius: 3px;
-            margin-left: 10px;
         }
 
-        .completed-list {
+        .completed-list li {
             color: #7f8c8d;
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .duration-badge {
+            font-size: 0.75rem;
+            background: #f1f2f6;
+            padding: 2px 8px;
+            border-radius: 12px;
+            color: #7f8c8d;
+            font-weight: 600;
         }
 
         /* Wheel Section */
@@ -202,11 +231,7 @@
             background-color: var(--primary) !important;
             box-shadow: 0 4px 0 var(--secondary) !important;
         }
-        .btn-reset-mode:active {
-            box-shadow: 0 1px 0 var(--secondary) !important;
-        }
 
-        /* Confetti Overlay */
         #confettiCanvas {
             position: fixed;
             top: 0;
@@ -229,7 +254,7 @@
     <div class="main-layout">
         <canvas id="confettiCanvas"></canvas>
         
-        <!-- FIRST: Wheel Section -->
+        <!-- Wheel Section -->
         <div class="wheel-section">
             <div class="pointer"></div>
             <canvas id="wheelCanvas" width="500" height="500"></canvas>
@@ -240,13 +265,13 @@
             </div>
         </div>
 
-        <!-- SECOND: Completed List -->
+        <!-- Completed List -->
         <div class="panel">
             <h2>Completed (<span id="doneCount">0</span>)</h2>
             <ol id="completedList" class="completed-list"></ol>
         </div>
 
-        <!-- THIRD: To Do List -->
+        <!-- To Do List -->
         <div class="panel">
             <h2>To Do (<span id="todoCount">0</span>)</h2>
             <div class="input-group">
@@ -256,7 +281,6 @@
             <ul id="activeList"></ul>
             <button class="btn-small-reset" onclick="confirmAndReset()">Reset Board</button>
         </div>
-
     </div>
 
     <script>
@@ -283,14 +307,17 @@
 
         // State
         let activeNames = [];
-        let completedNames = [];
+        let completedNames = []; // Array<{name: string, duration: string, durationMs: number}>
         let currentAngle = 0;
         let isSpinning = false;
         let spinVelocity = 0;
+        let currentWinnerName = null; 
+        let standupFinished = false;
 
         // Timer State
         let timerInterval = null;
         let timerStartTime = null;
+        let lastCompletionTime = null; 
         let timerStarted = false;
 
         // --- Initialization ---
@@ -309,11 +336,12 @@
         }
 
         // --- Timer Logic ---
-
         function startTimer() {
             if (timerStarted) return;
             timerStarted = true;
-            timerStartTime = Date.now();
+            const now = Date.now();
+            timerStartTime = now;
+            lastCompletionTime = now; 
             timerInterval = setInterval(updateTimer, 1000);
         }
 
@@ -327,6 +355,7 @@
         function resetTimer() {
             stopTimer();
             timerStarted = false;
+            lastCompletionTime = null;
             timerDisplay.textContent = "00:00";
         }
 
@@ -338,34 +367,57 @@
             timerDisplay.textContent = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
         }
 
-        // --- Data Management ---
+        function formatDuration(ms) {
+            const totalSeconds = Math.floor(ms / 1000);
+            const m = Math.floor(totalSeconds / 60);
+            const s = totalSeconds % 60;
+            if (m > 0) return `${m}m ${s}s`;
+            return `${s}s`;
+        }
 
+        // --- Data Management ---
         function saveData() {
-            localStorage.setItem('standup_active', JSON.stringify(activeNames));
-            localStorage.setItem('standup_completed', JSON.stringify(completedNames));
+            localStorage.setItem('standup_active_v2', JSON.stringify(activeNames));
+            localStorage.setItem('standup_completed_v2', JSON.stringify(completedNames));
         }
 
         function loadData() {
-            const savedActive = localStorage.getItem('standup_active');
-            const savedCompleted = localStorage.getItem('standup_completed');
+            const savedActive = localStorage.getItem('standup_active_v2');
+            const savedCompleted = localStorage.getItem('standup_completed_v2');
 
-            if (savedActive) activeNames = JSON.parse(savedActive);
-            if (savedCompleted) completedNames = JSON.parse(savedCompleted);
-
-            if (!savedActive && !savedCompleted) {
-                activeNames = ['Alice', 'Bob', 'Charlie', 'Diana', 'Evan'];
+            if (savedActive) {
+                activeNames = JSON.parse(savedActive);
+            } else {
+                activeNames = [
+                    { name: 'Alice', enabled: true },
+                    { name: 'Bob', enabled: true },
+                    { name: 'Charlie', enabled: true },
+                    { name: 'Diana', enabled: true },
+                    { name: 'Evan', enabled: true }
+                ];
+            }
+            if (savedCompleted) {
+                completedNames = JSON.parse(savedCompleted);
             }
         }
 
         function addName() {
             const name = newNameInput.value.trim();
             if (name) {
-                activeNames.push(name);
+                activeNames.push({ name: name, enabled: true });
                 newNameInput.value = '';
                 saveData();
                 updateUI();
                 drawWheel();
             }
+        }
+
+        function toggleParticipation(index) {
+            if (isSpinning) return;
+            activeNames[index].enabled = !activeNames[index].enabled;
+            saveData();
+            updateUI();
+            drawWheel();
         }
 
         function handleEnter(e) {
@@ -387,8 +439,11 @@
         }
 
         function resetStandup() {
-            activeNames = [...activeNames, ...completedNames];
+            const returnedNames = completedNames.map(item => ({ name: item.name, enabled: true }));
+            activeNames = [...activeNames, ...returnedNames];
             completedNames = [];
+            currentWinnerName = null;
+            standupFinished = false;
             winnerText.textContent = "New Stand-up Started";
             resetTimer();
             saveData();
@@ -397,67 +452,99 @@
         }
 
         // --- Main Logic ---
-
         function handleMainButtonClick() {
-            if (activeNames.length === 0 && completedNames.length > 0) {
+            const wheelList = activeNames.filter(p => p.enabled);
+            if (standupFinished || (wheelList.length === 0 && completedNames.length > 0)) {
                 resetStandup();
-            } else {
-                startTimer();
-                spinWheel();
+                return;
             }
+
+            if (currentWinnerName) {
+                moveToCompleted(currentWinnerName);
+                currentWinnerName = null;
+                const remainingParticipants = activeNames.filter(p => p.enabled);
+                if (remainingParticipants.length === 0) {
+                    return;
+                }
+            }
+
+            if (wheelList.length === 0) {
+                winnerText.textContent = "Enable someone to spin!";
+                return;
+            }
+            startTimer();
+            spinWheel();
         }
 
         function updateUI() {
             activeListEl.innerHTML = '';
-            activeNames.forEach((name, index) => {
+            activeNames.forEach((person, index) => {
                 const li = document.createElement('li');
-                li.className = 'active-item';
+                li.className = person.enabled ? 'active-item' : 'active-item disabled-name';
                 li.innerHTML = `
-                    <span>${name}</span>
+                    <input type="checkbox" ${person.enabled ? 'checked' : ''} onchange="toggleParticipation(${index})">
+                    <span class="name-label" onclick="toggleParticipation(${index})">${person.name}</span>
                     <button class="btn-delete" onclick="deleteName(${index})">×</button>
                 `;
                 activeListEl.appendChild(li);
             });
 
+            // Find shortest time if stand-up is over
+            let shortestId = -1;
+            if (standupFinished && completedNames.length > 0) {
+                let minTime = Infinity;
+                completedNames.forEach((item, idx) => {
+                    if (item.durationMs < minTime) {
+                        minTime = item.durationMs;
+                        shortestId = idx;
+                    }
+                });
+            }
+
             completedListEl.innerHTML = '';
-            completedNames.forEach(name => {
+            completedNames.forEach((item, idx) => {
                 const li = document.createElement('li');
-                li.textContent = name;
+                const isShortest = idx === shortestId;
+                
+                li.innerHTML = `
+                    <span style="${isShortest ? 'font-weight: bold; color: var(--primary);' : ''}">
+                        ${item.name}${isShortest ? ' 🥇🥳' : ''}
+                    </span>
+                    <span class="duration-badge">${item.duration}</span>
+                `;
                 completedListEl.appendChild(li);
             });
 
             todoCountEl.innerText = activeNames.length;
             doneCountEl.innerText = completedNames.length;
 
-            if (activeNames.length === 0) {
-                if (completedNames.length > 0) {
-                    spinBtn.disabled = false;
-                    spinBtn.textContent = "Start New Stand-up ↺";
-                    spinBtn.classList.add("btn-reset-mode");
-                    winnerText.textContent = "All done! 🎉";
-                } else {
-                    spinBtn.disabled = true;
-                    spinBtn.textContent = "SPIN!";
-                    spinBtn.classList.remove("btn-reset-mode");
-                    winnerText.textContent = "Add names to start";
-                }
-            } else {
+            const wheelList = activeNames.filter(p => p.enabled);
+
+            if (currentWinnerName && wheelList.length === 1) {
                 spinBtn.disabled = false;
+                spinBtn.textContent = "End Stand-up";
+                spinBtn.classList.remove("btn-reset-mode");
+            } else if (standupFinished || (wheelList.length === 0 && completedNames.length > 0)) {
+                spinBtn.disabled = false;
+                spinBtn.textContent = "Start New Stand-up ↺";
+                spinBtn.classList.add("btn-reset-mode");
+            } else {
+                spinBtn.disabled = isSpinning;
                 spinBtn.textContent = "SPIN!";
                 spinBtn.classList.remove("btn-reset-mode");
             }
         }
 
         // --- Wheel Rendering ---
-
         function drawWheel() {
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
             const radius = canvas.width / 2 - 10;
 
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const wheelList = activeNames.filter(p => p.enabled);
 
-            if (activeNames.length === 0) {
+            if (wheelList.length === 0) {
                 ctx.beginPath();
                 ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
                 ctx.fillStyle = "#ecf0f1";
@@ -467,16 +554,14 @@
                 return;
             }
 
-            const arcSize = (2 * Math.PI) / activeNames.length;
+            const arcSize = (2 * Math.PI) / wheelList.length;
 
-            activeNames.forEach((name, i) => {
+            wheelList.forEach((person, i) => {
                 const angle = currentAngle + (i * arcSize);
-                
                 ctx.beginPath();
                 ctx.moveTo(centerX, centerY);
                 ctx.arc(centerX, centerY, radius, angle, angle + arcSize);
                 ctx.closePath();
-                
                 ctx.fillStyle = colors[i % colors.length];
                 ctx.fill();
                 ctx.lineWidth = 2;
@@ -491,15 +576,14 @@
                 ctx.font = "bold 22px sans-serif";
                 ctx.shadowColor = "rgba(0,0,0,0.5)";
                 ctx.shadowBlur = 4;
-                ctx.fillText(name, radius - 20, 8);
+                ctx.fillText(person.name, radius - 20, 8);
                 ctx.restore();
             });
         }
 
         // --- Animation ---
-
         function spinWheel() {
-            if (isSpinning || activeNames.length === 0) return;
+            if (isSpinning) return;
             isSpinning = true;
             winnerText.textContent = "Spinning...";
             spinBtn.disabled = true;
@@ -523,45 +607,59 @@
             isSpinning = false;
             spinVelocity = 0;
             determineWinner();
+            updateUI(); 
         }
 
         function determineWinner() {
-            const arcSize = (2 * Math.PI) / activeNames.length;
+            const wheelList = activeNames.filter(p => p.enabled);
+            const arcSize = (2 * Math.PI) / wheelList.length;
             const pointerAngle = (3 * Math.PI / 2);
             let relativeAngle = pointerAngle - (currentAngle % (2 * Math.PI));
             while (relativeAngle < 0) relativeAngle += 2 * Math.PI;
             const index = Math.floor(relativeAngle / arcSize);
-            const winnerName = activeNames[index];
+            const winnerName = wheelList[index].name;
 
+            currentWinnerName = winnerName; 
             winnerText.textContent = `🎉 ${winnerName} is up! 🎉`;
-            setTimeout(() => autoMoveToCompleted(winnerName), 3000);
         }
 
-        function autoMoveToCompleted(name) {
-            const index = activeNames.indexOf(name);
+        function moveToCompleted(name) {
+            const index = activeNames.findIndex(p => p.name === name);
             if (index > -1) {
+                const now = Date.now();
+                const durationMs = now - lastCompletionTime;
+                const formatted = formatDuration(durationMs);
+                lastCompletionTime = now;
+
                 activeNames.splice(index, 1);
-                completedNames.push(name);
+                completedNames.push({ 
+                    name: name, 
+                    duration: formatted, 
+                    durationMs: durationMs 
+                });
                 
                 saveData();
-                updateUI();
-                drawWheel();
 
-                if (activeNames.length > 0) {
-                    winnerText.textContent = `Up next: Spin for next person`;
-                } else {
+                const wheelList = activeNames.filter(p => p.enabled);
+                if (wheelList.length === 0) {
+                    standupFinished = true;
+                    winnerText.textContent = "Stand-up Complete! 🎉";
                     stopTimer();
                     triggerConfetti();
+                } else {
+                    winnerText.textContent = `Up next: Spin for next person`;
                 }
+                
+                updateUI();
+                drawWheel();
             }
         }
 
         // --- Confetti Animation ---
-
         function triggerConfetti() {
             const particles = [];
             const particleCount = 150;
-            const colors = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
+            const colorsList = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
 
             for (let i = 0; i < particleCount; i++) {
                 particles.push({
@@ -569,7 +667,7 @@
                     y: Math.random() * confettiCanvas.height - confettiCanvas.height,
                     r: Math.random() * 6 + 4,
                     d: Math.random() * particleCount,
-                    color: colors[Math.floor(Math.random() * colors.length)],
+                    color: colorsList[Math.floor(Math.random() * colorsList.length)],
                     tilt: Math.random() * 10 - 10,
                     tiltAngleIncremental: Math.random() * 0.07 + 0.05,
                     tiltAngle: 0
@@ -580,14 +678,11 @@
             function drawConfetti() {
                 confettiCtx.clearRect(0, 0, confettiCanvas.width, confettiCanvas.height);
                 let remaining = false;
-                
-                particles.forEach((p, i) => {
+                particles.forEach((p) => {
                     p.tiltAngle += p.tiltAngleIncremental;
                     p.y += (Math.cos(p.d) + 3 + p.r / 2) / 2;
                     p.tilt = Math.sin(p.tiltAngle) * 15;
-
                     if (p.y <= confettiCanvas.height) remaining = true;
-
                     confettiCtx.beginPath();
                     confettiCtx.lineWidth = p.r;
                     confettiCtx.strokeStyle = p.color;
@@ -595,7 +690,6 @@
                     confettiCtx.lineTo(p.x + p.tilt, p.y + p.tilt + p.r / 4);
                     confettiCtx.stroke();
                 });
-
                 if (remaining) {
                     animationFrame = requestAnimationFrame(drawConfetti);
                 } else {
@@ -605,7 +699,6 @@
             }
             drawConfetti();
         }
-
     </script>
 </body>
 </html>
