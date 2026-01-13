@@ -12,6 +12,7 @@
             --success: #27ae60;
             --bg: #ecf0f1;
             --text: #333;
+            --modal-bg: rgba(0, 0, 0, 0.5);
         }
 
         body {
@@ -25,6 +26,74 @@
             margin: 0;
             padding: 20px;
             overflow-x: hidden;
+        }
+
+        /* Floating Settings Button */
+        .settings-trigger {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 50%;
+            width: 45px;
+            height: 45px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            z-index: 100;
+            transition: transform 0.3s ease;
+        }
+
+        .settings-trigger:hover {
+            transform: rotate(45deg);
+        }
+
+        .settings-trigger svg {
+            width: 24px;
+            height: 24px;
+            fill: var(--secondary);
+        }
+
+        /* Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: var(--modal-bg);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 400px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
         }
 
         .header-container {
@@ -81,11 +150,12 @@
             margin-bottom: 15px;
         }
 
-        input[type="text"] {
+        input[type="text"], select {
             flex: 1;
-            padding: 8px;
+            padding: 10px;
             border: 1px solid #ddd;
             border-radius: 5px;
+            font-family: inherit;
         }
 
         button {
@@ -246,6 +316,28 @@
 </head>
 <body>
 
+    <!-- Settings Gear -->
+    <div class="settings-trigger" id="settingsTrigger" title="Wheel Settings">
+        <svg viewBox="0 0 24 24"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.21.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-content">
+            <button class="modal-close" id="modalClose">&times;</button>
+            <h2>Wheel Settings</h2>
+            <div style="margin-top: 20px;">
+                <label for="themeSelect" style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--secondary);">Choose Wheel Theme</label>
+                <select id="themeSelect" onchange="selectPalette(this.value)">
+                    <!-- Options populated by JS -->
+                </select>
+            </div>
+            <div style="margin-top: 20px; font-size: 0.85rem; color: #777;">
+                Changes are saved automatically to your device.
+            </div>
+        </div>
+    </div>
+
     <div class="header-container">
         <h1>Daily Stand-up Wheel</h1>
         <div class="timer-display" id="timerDisplay">00:00</div>
@@ -298,21 +390,48 @@
         const todoCountEl = document.getElementById('todoCount');
         const doneCountEl = document.getElementById('doneCount');
         const timerDisplay = document.getElementById('timerDisplay');
+        const themeSelect = document.getElementById('themeSelect');
+        const modalOverlay = document.getElementById('modalOverlay');
+        const modalClose = document.getElementById('modalClose');
+        const settingsTrigger = document.getElementById('settingsTrigger');
 
-        const colors = [
-            '#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD', 
-            '#D4A5A5', '#9B59B6', '#3498DB', '#E67E22', '#2ECC71',
-            '#F1C40F', '#E74C3C', '#1ABC9C', '#8E44AD', '#34495E'
-        ];
+        // Palettes
+        const palettes = {
+            default: {
+                name: 'Vibrant Mix',
+                colors: ['#FF6B6B', '#4ECDC4', '#45B7D1', '#96CEB4', '#FFEEAD', '#D4A5A5', '#9B59B6', '#3498DB', '#E67E22', '#2ECC71']
+            },
+            valentine: {
+                name: 'Valentine\'s Day',
+                colors: ['#ff4d6d', '#ff758f', '#ff8fa3', '#ffb3c1', '#ffccd5', '#c9184a', '#a4133c', '#800f2f', '#590d22']
+            },
+            stpatricks: {
+                name: 'St. Patrick\'s Day',
+                colors: ['#2d6a4f', '#40916c', '#52b788', '#74c69d', '#95d5b2', '#b7e4c7', '#d8f3dc', '#1b4332', '#081c15']
+            },
+            july4th: {
+                name: 'Fourth of July',
+                colors: ['#b22234', '#ffffff', '#3c3b6e', '#d32f2f', '#f5f5f5', '#1a237e', '#f44336', '#303f9f']
+            },
+            halloween: {
+                name: 'Halloween',
+                colors: ['#ff9a00', '#ff7400', '#ff4d00', '#000000', '#5c2a9d', '#9d2a9d', '#2c2c2c', '#330066']
+            },
+            christmas: {
+                name: 'Christmas',
+                colors: ['#d62828', '#1b4332', '#ffffff', '#fcbf49', '#f77f00', '#2d6a4f', '#a4133c', '#eae2b7']
+            }
+        };
 
         // State
         let activeNames = [];
-        let completedNames = []; // Array<{name: string, duration: string, durationMs: number}>
+        let completedNames = [];
         let currentAngle = 0;
         let isSpinning = false;
         let spinVelocity = 0;
         let currentWinnerName = null; 
         let standupFinished = false;
+        let currentPaletteKey = 'default';
 
         // Timer State
         let timerInterval = null;
@@ -324,15 +443,41 @@
         window.onload = () => {
             resizeConfetti();
             loadData();
+            initThemeDropdown();
             updateUI();
             drawWheel();
         };
 
         window.onresize = resizeConfetti;
 
+        // Modal Listeners
+        settingsTrigger.onclick = () => modalOverlay.classList.add('active');
+        modalClose.onclick = () => modalOverlay.classList.remove('active');
+        window.onclick = (e) => {
+            if (e.target === modalOverlay) modalOverlay.classList.remove('active');
+        };
+
         function resizeConfetti() {
             confettiCanvas.width = window.innerWidth;
             confettiCanvas.height = window.innerHeight;
+        }
+
+        // --- Palette Logic ---
+        function initThemeDropdown() {
+            themeSelect.innerHTML = '';
+            Object.entries(palettes).forEach(([key, palette]) => {
+                const option = document.createElement('option');
+                option.value = key;
+                option.textContent = palette.name;
+                if (key === currentPaletteKey) option.selected = true;
+                themeSelect.appendChild(option);
+            });
+        }
+
+        function selectPalette(key) {
+            currentPaletteKey = key;
+            localStorage.setItem('standup_palette', key);
+            drawWheel();
         }
 
         // --- Timer Logic ---
@@ -384,6 +529,7 @@
         function loadData() {
             const savedActive = localStorage.getItem('standup_active_v2');
             const savedCompleted = localStorage.getItem('standup_completed_v2');
+            const savedPalette = localStorage.getItem('standup_palette');
 
             if (savedActive) {
                 activeNames = JSON.parse(savedActive);
@@ -398,6 +544,9 @@
             }
             if (savedCompleted) {
                 completedNames = JSON.parse(savedCompleted);
+            }
+            if (savedPalette && palettes[savedPalette]) {
+                currentPaletteKey = savedPalette;
             }
         }
 
@@ -489,7 +638,6 @@
                 activeListEl.appendChild(li);
             });
 
-            // Find shortest time if stand-up is over
             let shortestId = -1;
             if (standupFinished && completedNames.length > 0) {
                 let minTime = Infinity;
@@ -555,6 +703,7 @@
             }
 
             const arcSize = (2 * Math.PI) / wheelList.length;
+            const themeColors = palettes[currentPaletteKey].colors;
 
             wheelList.forEach((person, i) => {
                 const angle = currentAngle + (i * arcSize);
@@ -562,7 +711,8 @@
                 ctx.moveTo(centerX, centerY);
                 ctx.arc(centerX, centerY, radius, angle, angle + arcSize);
                 ctx.closePath();
-                ctx.fillStyle = colors[i % colors.length];
+                
+                ctx.fillStyle = themeColors[i % themeColors.length];
                 ctx.fill();
                 ctx.lineWidth = 2;
                 ctx.strokeStyle = "#fff";
@@ -572,10 +722,17 @@
                 ctx.translate(centerX, centerY);
                 ctx.rotate(angle + arcSize / 2);
                 ctx.textAlign = "right";
-                ctx.fillStyle = "#fff";
+                
+                const hex = ctx.fillStyle.replace('#', '');
+                const r = parseInt(hex.substr(0, 2), 16);
+                const g = parseInt(hex.substr(2, 2), 16);
+                const b = parseInt(hex.substr(4, 2), 16);
+                const brightness = ((r * 299) + (g * 587) + (b * 114)) / 1000;
+                ctx.fillStyle = brightness > 180 ? '#333' : '#fff';
+
                 ctx.font = "bold 22px sans-serif";
-                ctx.shadowColor = "rgba(0,0,0,0.5)";
-                ctx.shadowBlur = 4;
+                ctx.shadowColor = brightness > 180 ? "rgba(255,255,255,0.3)" : "rgba(0,0,0,0.3)";
+                ctx.shadowBlur = 2;
                 ctx.fillText(person.name, radius - 20, 8);
                 ctx.restore();
             });
@@ -587,12 +744,12 @@
             isSpinning = true;
             winnerText.textContent = "Spinning...";
             spinBtn.disabled = true;
-            spinVelocity = Math.random() * 0.25 + 0.35; 
+            spinVelocity = Math.random() * 0.375 + 0.525; 
             requestAnimationFrame(animateSpin);
         }
 
         function animateSpin() {
-            spinVelocity *= 0.98;
+            spinVelocity *= 0.975; 
             currentAngle += spinVelocity;
             if (currentAngle >= 2 * Math.PI) currentAngle -= 2 * Math.PI;
             drawWheel();
@@ -659,7 +816,7 @@
         function triggerConfetti() {
             const particles = [];
             const particleCount = 150;
-            const colorsList = ['#f44336', '#e91e63', '#9c27b0', '#673ab7', '#3f51b5', '#2196f3', '#03a9f4', '#00bcd4', '#009688', '#4caf50', '#8bc34a', '#cddc39', '#ffeb3b', '#ffc107', '#ff9800', '#ff5722'];
+            const colorsList = palettes[currentPaletteKey].colors;
 
             for (let i = 0; i < particleCount; i++) {
                 particles.push({
