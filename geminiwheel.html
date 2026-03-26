@@ -523,23 +523,26 @@
         // --- Data Management ---
         function saveData() {
             localStorage.setItem('standup_active_v2', JSON.stringify(activeNames));
-            localStorage.setItem('standup_completed_v2', JSON.stringify(completedNames));
+            localStorage.setItem('standup_completed_v3', JSON.stringify(completedNames));
         }
 
         function loadData() {
             const savedActive = localStorage.getItem('standup_active_v2');
-            const savedCompleted = localStorage.getItem('standup_completed_v2');
+            const savedCompleted = localStorage.getItem('standup_completed_v3');
             const savedPalette = localStorage.getItem('standup_palette');
 
             if (savedActive) {
                 activeNames = JSON.parse(savedActive);
+                activeNames.forEach((p, i) => {
+                    if (p.colorIndex === undefined) p.colorIndex = i;
+                });
             } else {
                 activeNames = [
-                    { name: 'Alice', enabled: true },
-                    { name: 'Bob', enabled: true },
-                    { name: 'Charlie', enabled: true },
-                    { name: 'Diana', enabled: true },
-                    { name: 'Evan', enabled: true }
+                    { name: 'Alice', enabled: true, colorIndex: 0 },
+                    { name: 'Bob', enabled: true, colorIndex: 1 },
+                    { name: 'Charlie', enabled: true, colorIndex: 2 },
+                    { name: 'Diana', enabled: true, colorIndex: 3 },
+                    { name: 'Evan', enabled: true, colorIndex: 4 }
                 ];
             }
             if (savedCompleted) {
@@ -553,7 +556,10 @@
         function addName() {
             const name = newNameInput.value.trim();
             if (name) {
-                activeNames.push({ name: name, enabled: true });
+                const nextIndex = activeNames.length > 0 
+                    ? Math.max(...activeNames.map(p => p.colorIndex)) + 1 
+                    : 0;
+                activeNames.push({ name: name, enabled: true, colorIndex: nextIndex });
                 newNameInput.value = '';
                 saveData();
                 updateUI();
@@ -588,8 +594,30 @@
         }
 
         function resetStandup() {
-            const returnedNames = completedNames.map(item => ({ name: item.name, enabled: true }));
-            activeNames = [...activeNames, ...returnedNames];
+            // Collect all participants from both lists
+            const allParticipants = [
+                ...activeNames,
+                ...completedNames.map(item => ({ 
+                    name: item.name, 
+                    enabled: true,
+                    colorIndex: item.colorIndex 
+                }))
+            ];
+
+            // Assign different colors by applying a random rotation offset to the indices
+            const paletteSize = palettes[currentPaletteKey].colors.length;
+            // Shift is between 1 and paletteSize - 1 to guarantee a change
+            const shift = Math.floor(Math.random() * (paletteSize - 1)) + 1;
+
+            activeNames = allParticipants.map(p => ({
+                ...p,
+                enabled: true,
+                colorIndex: p.colorIndex + shift
+            }));
+
+            // Re-sort to maintain a stable alphabetical or creation-based loop for the spin logic
+            activeNames.sort((a, b) => a.colorIndex - b.colorIndex);
+
             completedNames = [];
             currentWinnerName = null;
             standupFinished = false;
@@ -712,7 +740,7 @@
                 ctx.arc(centerX, centerY, radius, angle, angle + arcSize);
                 ctx.closePath();
                 
-                ctx.fillStyle = themeColors[i % themeColors.length];
+                ctx.fillStyle = themeColors[person.colorIndex % themeColors.length];
                 ctx.fill();
                 ctx.lineWidth = 2;
                 ctx.strokeStyle = "#fff";
@@ -744,12 +772,12 @@
             isSpinning = true;
             winnerText.textContent = "Spinning...";
             spinBtn.disabled = true;
-            spinVelocity = Math.random() * 0.375 + 0.525; 
+            spinVelocity = Math.random() * 0.56 + 0.78; 
             requestAnimationFrame(animateSpin);
         }
 
         function animateSpin() {
-            spinVelocity *= 0.975; 
+            spinVelocity *= 0.968; 
             currentAngle += spinVelocity;
             if (currentAngle >= 2 * Math.PI) currentAngle -= 2 * Math.PI;
             drawWheel();
@@ -783,6 +811,7 @@
         function moveToCompleted(name) {
             const index = activeNames.findIndex(p => p.name === name);
             if (index > -1) {
+                const person = activeNames[index];
                 const now = Date.now();
                 const durationMs = now - lastCompletionTime;
                 const formatted = formatDuration(durationMs);
@@ -790,9 +819,10 @@
 
                 activeNames.splice(index, 1);
                 completedNames.push({ 
-                    name: name, 
+                    name: person.name, 
                     duration: formatted, 
-                    durationMs: durationMs 
+                    durationMs: durationMs,
+                    colorIndex: person.colorIndex 
                 });
                 
                 saveData();
