@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Agile Stand-up Spinner</title>
+    <!-- PWA Manifest Link -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2c3e50">
     <style>
         :root {
             --primary: #2c3e50;
@@ -103,7 +106,7 @@
             margin-bottom: 20px;
         }
 
-        h1 { color: var(--primary); margin: 0; }
+        h1 { color: var(--primary); margin: 0; text-align: center; }
 
         .timer-display {
             font-family: 'Courier New', Courier, monospace;
@@ -215,6 +218,21 @@
             text-decoration: line-through;
         }
 
+        .btn-go-now {
+            background-color: #3498db;
+            color: white;
+            padding: 3px 8px;
+            font-size: 11px;
+            border-radius: 4px;
+            white-space: nowrap;
+        }
+        .btn-go-now:hover {
+            background-color: #2980b9;
+        }
+        .active-item.disabled-name .btn-go-now {
+            display: none;
+        }
+
         .btn-delete {
             background-color: #e74c3c;
             color: white;
@@ -311,7 +329,6 @@
             pointer-events: none;
             z-index: 999;
         }
-
     </style>
 </head>
 <body>
@@ -329,7 +346,6 @@
             <div style="margin-top: 20px;">
                 <label for="themeSelect" style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--secondary);">Choose Wheel Theme</label>
                 <select id="themeSelect" onchange="selectPalette(this.value)">
-                    <!-- Options populated by JS -->
                 </select>
             </div>
             <div style="margin-top: 20px; font-size: 0.85rem; color: #777;">
@@ -376,6 +392,17 @@
     </div>
 
     <script>
+        // --- Service Worker Registration ---
+        // Safety check: Only register if we are on a standard web protocol (http or https)
+        // and not a blob URL, which often happens in local preview environments.
+        if ('serviceWorker' in navigator && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').catch(err => {
+                    console.log('ServiceWorker registration skipped or failed: ', err);
+                });
+            });
+        }
+
         // --- Configuration ---
         const canvas = document.getElementById('wheelCanvas');
         const ctx = canvas.getContext('2d');
@@ -395,7 +422,6 @@
         const modalClose = document.getElementById('modalClose');
         const settingsTrigger = document.getElementById('settingsTrigger');
 
-        // Palettes
         const palettes = {
             default: {
                 name: 'Vibrant Mix',
@@ -417,13 +443,16 @@
                 name: 'Halloween',
                 colors: ['#ff9a00', '#ff7400', '#ff4d00', '#000000', '#5c2a9d', '#9d2a9d', '#2c2c2c', '#330066']
             },
+            thanksgiving: {
+                name: 'Thanksgiving',
+                colors: ['#d94e1f', '#b83b1d', '#e07a1f', '#e6a122', '#7b3f00', '#8b2635', '#556b2f', '#d4a373']
+            },
             christmas: {
                 name: 'Christmas',
                 colors: ['#d62828', '#1b4332', '#ffffff', '#fcbf49', '#f77f00', '#2d6a4f', '#a4133c', '#eae2b7']
             }
         };
 
-        // State
         let activeNames = [];
         let completedNames = [];
         let currentAngle = 0;
@@ -433,13 +462,11 @@
         let standupFinished = false;
         let currentPaletteKey = 'default';
 
-        // Timer State
         let timerInterval = null;
         let timerStartTime = null;
         let lastCompletionTime = null; 
         let timerStarted = false;
 
-        // --- Initialization ---
         window.onload = () => {
             resizeConfetti();
             loadData();
@@ -450,7 +477,6 @@
 
         window.onresize = resizeConfetti;
 
-        // Modal Listeners
         settingsTrigger.onclick = () => modalOverlay.classList.add('active');
         modalClose.onclick = () => modalOverlay.classList.remove('active');
         window.onclick = (e) => {
@@ -462,7 +488,6 @@
             confettiCanvas.height = window.innerHeight;
         }
 
-        // --- Palette Logic ---
         function initThemeDropdown() {
             themeSelect.innerHTML = '';
             Object.entries(palettes).forEach(([key, palette]) => {
@@ -480,7 +505,6 @@
             drawWheel();
         }
 
-        // --- Timer Logic ---
         function startTimer() {
             if (timerStarted) return;
             timerStarted = true;
@@ -520,7 +544,6 @@
             return `${s}s`;
         }
 
-        // --- Data Management ---
         function saveData() {
             localStorage.setItem('standup_active_v2', JSON.stringify(activeNames));
             localStorage.setItem('standup_completed_v3', JSON.stringify(completedNames));
@@ -579,6 +602,42 @@
             if (e.key === 'Enter') addName();
         }
 
+        function goNow(name) {
+            if (isSpinning) return;
+
+            // Make sure the person is enabled
+            const person = activeNames.find(p => p.name === name);
+            if (!person) return;
+            if (!person.enabled) {
+                person.enabled = true;
+            }
+
+            // If someone is currently speaking, log them first
+            if (currentWinnerName) {
+                moveToCompleted(currentWinnerName);
+                currentWinnerName = null;
+            }
+
+            // Start timer if not already running
+            startTimer();
+
+            // Rotate the wheel directly to point at this person
+            const wheelList = activeNames.filter(p => p.enabled);
+            const targetIndex = wheelList.findIndex(p => p.name === name);
+            if (targetIndex > -1) {
+                const arcSize = (2 * Math.PI) / wheelList.length;
+                const pointerAngle = (3 * Math.PI / 2); // 270 deg (top)
+                // Position wheel so slice center aligns with pointer
+                currentAngle = (pointerAngle - ((targetIndex + 0.5) * arcSize)) % (2 * Math.PI);
+                if (currentAngle < 0) currentAngle += 2 * Math.PI;
+            }
+
+            currentWinnerName = name;
+            winnerText.textContent = `🎉 ${name} is up! 🎉`;
+            drawWheel();
+            updateUI();
+        }
+
         function deleteName(index) {
             if (isSpinning) return;
             activeNames.splice(index, 1);
@@ -594,7 +653,6 @@
         }
 
         function resetStandup() {
-            // Collect all participants from both lists
             const allParticipants = [
                 ...activeNames,
                 ...completedNames.map(item => ({ 
@@ -604,9 +662,7 @@
                 }))
             ];
 
-            // Assign different colors by applying a random rotation offset to the indices
             const paletteSize = palettes[currentPaletteKey].colors.length;
-            // Shift is between 1 and paletteSize - 1 to guarantee a change
             const shift = Math.floor(Math.random() * (paletteSize - 1)) + 1;
 
             activeNames = allParticipants.map(p => ({
@@ -615,7 +671,6 @@
                 colorIndex: p.colorIndex + shift
             }));
 
-            // Re-sort to maintain a stable alphabetical or creation-based loop for the spin logic
             activeNames.sort((a, b) => a.colorIndex - b.colorIndex);
 
             completedNames = [];
@@ -628,7 +683,6 @@
             drawWheel();
         }
 
-        // --- Main Logic ---
         function handleMainButtonClick() {
             const wheelList = activeNames.filter(p => p.enabled);
             if (standupFinished || (wheelList.length === 0 && completedNames.length > 0)) {
@@ -661,6 +715,7 @@
                 li.innerHTML = `
                     <input type="checkbox" ${person.enabled ? 'checked' : ''} onchange="toggleParticipation(${index})">
                     <span class="name-label" onclick="toggleParticipation(${index})">${person.name}</span>
+                    <button class="btn-go-now" onclick="goNow('${person.name.replace(/'/g, "\\'")}')" title="Start turn immediately">Go now</button>
                     <button class="btn-delete" onclick="deleteName(${index})">×</button>
                 `;
                 activeListEl.appendChild(li);
@@ -711,7 +766,6 @@
             }
         }
 
-        // --- Wheel Rendering ---
         function drawWheel() {
             const centerX = canvas.width / 2;
             const centerY = canvas.height / 2;
@@ -766,7 +820,6 @@
             });
         }
 
-        // --- Animation ---
         function spinWheel() {
             if (isSpinning) return;
             isSpinning = true;
@@ -842,7 +895,6 @@
             }
         }
 
-        // --- Confetti Animation ---
         function triggerConfetti() {
             const particles = [];
             const particleCount = 150;
